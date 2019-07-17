@@ -1,10 +1,11 @@
 package org.manatki.glass
 
 import cats.{Applicative, Functor, Id}
+import org.manatki.glass.data.Identity
 
 /** aka Setter
   * can update all occurrences of A in S */
-trait PUpdate[S, T, A, B] {
+trait PUpdate[-S, +T, +A, -B] {
   def update(s: S, fb: A => B): T
 
   def put(s: S, b: B) = update(s, _ => b)
@@ -17,8 +18,8 @@ object PUpdate extends OpticCompanion[PUpdate] {
     (s, fuv) => g.update(s, f.update(_, fuv))
 
   class Context extends PItems.Context {
-    val functor = Applicative[Id]
-    type F[x] = x
+    val functor = Applicative[Identity]
+    type F[+x] = x
   }
 
   override def toGeneric[S, T, A, B](o: PUpdate[S, T, A, B]): Optic[Context, S, T, A, B] =
@@ -29,5 +30,5 @@ object PUpdate extends OpticCompanion[PUpdate] {
   override def fromGeneric[S, T, A, B](o: Optic[Context, S, T, A, B]): PUpdate[S, T, A, B] =
     (a, fab) => o(new Context)(fab)(a)
 
-  final implicit def byFunctor[F[_], A, B](implicit F: Functor[F]): PUpdate[F[A], F[B], A, B] = F.map(_)(_)
+  final implicit def byFunctor[F[+_], A, B](implicit F: Functor[F]): PUpdate[F[A], F[B], A, B] = F.map(_)(_)
 }

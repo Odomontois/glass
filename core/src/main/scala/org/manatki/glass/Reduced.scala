@@ -2,16 +2,17 @@ package org.manatki.glass
 
 import cats._
 import cats.data.{Const, NonEmptyList}
+import org.manatki.glass.data.Constant
 
 /** aka NonEmptyFold
   * S has some occurences of A
   * and can collect then
   */
-trait PReduced[S, T, A, B] extends PFolded[S, T, A, B] {
+trait PReduced[-S, +T, +A, -B] extends PFolded[S, T, A, B] {
   def reduceMap[X: Semigroup](s: S)(f: A => X): X
 
   def foldMap[X: Monoid](s: S)(f: A => X): X = reduceMap(s)(f)
-  def getAll1(s: S): NonEmptyList[A] = reduceMap(s)(NonEmptyList.one[A])
+  def getAll1(s: S): NonEmptyList[A]         = reduceMap(s)(NonEmptyList.one[A])
 }
 
 object Reduced extends MonoOpticCompanion(PReduced)
@@ -22,23 +23,23 @@ object PReduced extends OpticCompanion[PReduced] {
       def reduceMap[X: Semigroup](s: S)(fux: U => X): X = g.reduceMap(s)(f.reduceMap(_)(fux))
     }
 
-  final implicit def byReducible[F[_], T, A, B](implicit F: Reducible[F]): PReduced[F[A], T, A, B] =
+  final implicit def byReducible[F[+ _], T, A, B](implicit F: Reducible[F]): PReduced[F[A], T, A, B] =
     new PReduced[F[A], T, A, B] {
       def reduceMap[X: Semigroup](fa: F[A])(f: A => X): X = F.reduceMap(fa)(f)
     }
 
   trait Context extends PRepeated.Context with PExtract.Context {
     def algebra: Semigroup[X]
-    override def functor: Apply[Const[X, ?]] = {
+    override def functor: Apply[Constant[X, *]] = {
       implicit val alg: Semigroup[X] = algebra
-      Apply[Const[X, ?]]
+      Apply[Constant[X, *]]
     }
   }
 
   override def toGeneric[S, T, A, B](o: PReduced[S, T, A, B]): Optic[Context, S, T, A, B] =
     new Optic[Context, S, T, A, B] {
-      def apply(c: Context)(p: A => Const[c.X, B]): S => Const[c.X, T] =
-        s => Const(o.reduceMap(s)(a => p(a).getConst)(c.algebra))
+      def apply(c: Context)(p: A => Constant[c.X, B]): S => Constant[c.X, T] =
+        s => Constant.Impl(o.reduceMap(s)(a => p(a).value)(c.algebra))
     }
   override def fromGeneric[S, T, A, B](o: Optic[Context, S, T, A, B]): PReduced[S, T, A, B] =
     new PReduced[S, T, A, B] {
@@ -46,8 +47,8 @@ object PReduced extends OpticCompanion[PReduced] {
         o.apply(new Context {
             type X = Y
             def algebra = Semigroup[Y]
-          })(a => Const(f(a)))(s)
-          .getConst
+          })(a => Constant.Impl(f(a)))(s)
+          .value
 
     }
 }

@@ -2,6 +2,8 @@ package org.manatki.glass
 import cats.{Applicative, Monoid}
 import monocle._
 
+import scala.annotation.unchecked.uncheckedVariance
+
 object interop {
   final implicit class EquivalentInteropOps[S, T, A, B](val eqv: PEquivalent[S, T, A, B]) extends AnyVal {
     def toIso: PIso[S, T, A, B] = PIso(eqv.extract)(eqv.upcast)
@@ -49,13 +51,16 @@ object interop {
 
   final implicit class ItemsInteropOps[S, T, A, B](val items: PItems[S, T, A, B]) extends AnyVal {
     def toTraversal: PTraversal[S, T, A, B] = new PTraversal[S, T, A, B] {
-      def modifyF[F[_]: Applicative](f: A => F[B])(s: S): F[T] = items.traverse(s)(f)
+      def modifyF[F[_]: Applicative](f: A => F[B])(s: S): F[T] = {
+        type F1[+x] = F[x @uncheckedVariance]
+        items.traverse[F1](s)(f)
+      }
     }
   }
 
   final implicit class TraversalInteropOps[S, T, A, B](val items: PTraversal[S, T, A, B]) extends AnyVal {
     def toItems: PItems[S, T, A, B] = new PItems[S, T, A, B] {
-      def traverse[F[_]: Applicative](a: S)(f: A => F[B]): F[T] = items.modifyF(f)(a)
+      def traverse[F[+ _]: Applicative](a: S)(f: A => F[B]): F[T] = items.modifyF(f)(a)
     }
   }
 

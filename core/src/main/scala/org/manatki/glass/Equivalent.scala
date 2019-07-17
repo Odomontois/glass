@@ -5,19 +5,20 @@ import cats.arrow._
 import cats.data.Const
 import cats.instances.function._
 import cats.syntax.either._
+import org.manatki.glass.data.{Constant, Tagged}
 
 /** aka Iso
   * S and B share same information
   */
-trait PEquivalent[S, T, A, B] extends PSubset[S, T, A, B] with PContains[S, T, A, B] {
+trait PEquivalent[-S, +T, +A, -B] extends PSubset[S, T, A, B] with PContains[S, T, A, B] {
   self =>
   def extract(s: S): A
   def upcast(b: B): T
 
-  override def traverse[F[_]](a: S)(f: A => F[B])(implicit F: Applicative[F]): F[T] =
+  override def traverse[F[+ _]](a: S)(f: A => F[B])(implicit F: Applicative[F]): F[T] =
     F.map(f(extract(a)))(upcast)
 
-  def employ[F[_], P[_, _]](pb: P[A, F[B]])(implicit F: Functor[F], P: Profunctor[P]): P[S, F[T]] =
+  def employ[F[+ _], P[- _, + _]](pb: P[A, F[B]])(implicit F: Functor[F], P: Profunctor[P]): P[S, F[T]] =
     P.dimap(pb)(extract)(F.map(_)(upcast))
 
   override def downcast(s: S): Option[A] = Some(extract(s))
@@ -36,13 +37,12 @@ object PEquivalent extends OpticCompanion[PEquivalent] {
       def upcast(v: V): T  = g.upcast(f.upcast(v))
     }
 
-
   trait ByEmploy[S, T, A, B] extends PEquivalent[S, T, A, B] {
-    def emp[F[_]: Functor, P[_, _]: Profunctor](pb: P[A, F[B]]): P[S, F[T]]
-    override def employ[F[_]: Functor, P[_, _]: Profunctor](pb: P[A, F[B]]): P[S, F[T]] = emp(pb)
+    def emp[F[+ _]: Functor, P[- _, + _]: Profunctor](pb: P[A, F[B]]): P[S, F[T]]
+    override def employ[F[+ _]: Functor, P[- _, + _]: Profunctor](pb: P[A, F[B]]): P[S, F[T]] = emp(pb)
 
-    def extract(a: S): A = employ[Const[A, ?], ? => ?](b => Const[A, B](b)).apply(a).getConst
-    def upcast(b: B): T  = employ[B => ?, Tagged](Tagged(b => b)).value(b)
+    def extract(a: S): A = employ[Constant[A, +*], -* => +*](b => Constant.Impl(b)).apply(a).value
+    def upcast(b: B): T  = employ[B => +*, Tagged](Tagged(b => b)).value(b)
   }
 
   trait Context extends OpticContext {
@@ -58,12 +58,12 @@ object PEquivalent extends OpticCompanion[PEquivalent] {
 
   override def fromGeneric[S, T, A, B](o: Optic[Context, S, T, A, B]): PEquivalent[S, T, A, B] =
     new ByEmploy[S, T, A, B] {
-      def emp[G[_]: Functor, Q[_, _]: Profunctor](pb: Q[A, G[B]]): Q[S, G[T]] =
+      def emp[G[+ _]: Functor, Q[- _, + _]: Profunctor](pb: Q[A, G[B]]): Q[S, G[T]] =
         o(new Context {
           def functor    = Functor[F]
           def profunctor = Profunctor[Q]
-          type F[x]    = G[x]
-          type P[x, y] = Q[x, y]
+          type F[+x]     = G[x]
+          type P[-x, +y] = Q[x, y]
         })(pb)
     }
 }

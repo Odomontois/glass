@@ -7,18 +7,19 @@ import cats.syntax.either._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.{Applicative, Functor, Id, Monoid}
+import org.manatki.glass.data.Identity
 
 /** aka Optional
   * S may or may not contain single element of A
   * which may be set to B and change whole type to T*/
-trait PProperty[S, T, A, B] extends PItems[S, T, A, B] with PDowncast[S, T, A, B] {
+trait PProperty[-S, +T, +A, -B] extends PItems[S, T, A, B] with PDowncast[S, T, A, B] {
   def set(s: S, b: B): T
   def narrow(s: S): Either[T, A]
 
-  def traverse[F[_]](s: S)(f: A => F[B])(implicit F: Applicative[F]): F[T] =
+  def traverse[F[+ _]](s: S)(f: A => F[B])(implicit F: Applicative[F]): F[T] =
     narrow(s).traverse(f).map(_.fold(t => t, set(s, _)))
 
-  def traject[F[_]](s: S)(fab: A => F[B])(implicit FP: Pure[F], F: Functor[F]): F[T] =
+  def traject[F[+ _]](s: S)(fab: A => F[B])(implicit FP: Pure[F], F: Functor[F]): F[T] =
     narrow(s).fold[F[T]](FP.pure, a => fab(a).map(set(s, _)))
 
   def downcast(s: S): Option[A] = narrow(s).toOption
@@ -37,13 +38,12 @@ object PProperty extends OpticCompanion[PProperty] {
       def narrow(s: S): Either[T, U] = g.narrow(s).flatMap(a => f.narrow(a).leftMap(g.set(s, _)))
     }
 
-
   trait ByTraject[S, T, A, B] extends PProperty[S, T, A, B] {
-    def traj[F[_]](s: S)(fab: A => F[B])(implicit FP: Pure[F], F: Functor[F]): F[T]
+    def traj[F[+ _]](s: S)(fab: A => F[B])(implicit FP: Pure[F], F: Functor[F]): F[T]
 
-    override def traject[F[_]](s: S)(fab: A => F[B])(implicit FP: Pure[F], F: Functor[F]): F[T] = traj(s)(fab)
-    def set(s: S, b: B): T                                                                      = traj[Id](s)(_ => b)
-    def narrow(s: S): Either[T, A]                                                              = traj[Either[A, ?]](s)(a => Left(a)).swap
+    override def traject[F[+ _]](s: S)(fab: A => F[B])(implicit FP: Pure[F], F: Functor[F]): F[T] = traj(s)(fab)
+    def set(s: S, b: B): T                                                                        = traj[Identity](s)(_ => b)
+    def narrow(s: S): Either[T, A]                                                                = traj[Either[A, +*]](s)(a => Left(a)).swap
   }
 
   override def toGeneric[S, T, A, B](o: PProperty[S, T, A, B]): Optic[Context, S, T, A, B] =
@@ -52,11 +52,11 @@ object PProperty extends OpticCompanion[PProperty] {
     }
   override def fromGeneric[S, T, A, B](o: Optic[Context, S, T, A, B]): PProperty[S, T, A, B] =
     new ByTraject[S, T, A, B] {
-      def traj[G[_]](s: S)(fab: A => G[B])(implicit FP: Pure[G], F: Functor[G]): G[T] =
+      def traj[G[+ _]](s: S)(fab: A => G[B])(implicit FP: Pure[G], F: Functor[G]): G[T] =
         o(new Context {
           def pure    = FP
           def functor = F
-          type F[x] = G[x]
+          type F[+x] = G[x]
         })(fab)(s)
     }
 }

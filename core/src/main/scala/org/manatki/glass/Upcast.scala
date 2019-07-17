@@ -2,8 +2,10 @@ package org.manatki.glass
 
 import alleycats.Pure
 import cats.{Functor, Id}
+import org.manatki.glass.classes.PChoice
+import org.manatki.glass.data.{Identity, Tagged}
 
-trait PUpcast[S, T, A, B] {
+trait PUpcast[-S, +T, +A, -B] {
   def upcast(b: B): T
 }
 
@@ -15,11 +17,11 @@ object PUpcast extends OpticCompanion[PUpcast] {
     v => g.upcast(f.upcast(v))
 
   class Context extends PSubset.Context {
-    override type P[x, y] = Tagged[x, y]
-    type F[x]             = x
-    def pure       = Pure[Id]
+    override type P[-x, +y] = Tagged[x, y]
+    type F[+x]             = x
+    def pure       = Pure[Identity]
     def profunctor = PChoice[Tagged]
-    def functor    = Functor[Id]
+    def functor    = Functor[Identity]
   }
   def toGeneric[S, T, A, B](o: PUpcast[S, T, A, B]): Optic[Context, S, T, A, B] =
     new Optic[Context, S, T, A, B] {

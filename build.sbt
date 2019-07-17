@@ -16,7 +16,7 @@ scalacOptions in ThisBuild ++= Vector(
   "-Ywarn-value-discard" // Warn when non-Unit expression results are unused.
 )
 
-libraryDependencies in ThisBuild += compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
+libraryDependencies in ThisBuild += compilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3")
 libraryDependencies in ThisBuild += compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.2.4")
 
 lazy val core = project
